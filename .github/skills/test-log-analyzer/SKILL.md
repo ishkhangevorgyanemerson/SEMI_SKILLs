@@ -1,6 +1,6 @@
 ---
 name: test-log-analyzer
-description: Analyze semiconductor test logs in STDF or CSV format and produce a concise, structured markdown summary of yield, top failing tests, fail counts, site patterns, and likely root-cause signals. Use when the task involves ATE datalogs, test failures, yield triage, binning trends, parametric limit violations, or quick post-run summaries.
+description: Analyze semiconductor test logs in STDF or CSV format and produce a concise, structured markdown summary of yield, top failing tests, fail counts, and likely root-cause signals. Use when the task involves ATE datalogs, test failures, yield triage, binning trends, parametric limit violations, or quick post-run summaries.
 license: Apache-2.0
 compatibility: Requires python3 and pandas. For binary STDF input, prefer an installed parser backend such as stdfast or pystdf. Reads ./assets/output-template.md and executes ./scripts/analyze_test_logs.py.
 metadata:
