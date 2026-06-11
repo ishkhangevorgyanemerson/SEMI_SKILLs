@@ -52,6 +52,23 @@ Primary output in chat:
 Optional file output:
 - normalized `.csv` file
 
+
+## Mandatory response rule
+Before answering, always read `output-template.md`.
+
+The final response in chat must follow `output-template.md` exactly.
+
+Do not:
+- change section names
+- invent alternative headings
+- reorder sections
+- add extra sections
+- add optional suggestions outside the template
+- output a free-form summary instead of the template
+
+If some values are unavailable, keep the section and write `N/A`.
+
+
 ## Strict output rule
 Do **not** generate these report files:
 - `*_summary.md`
