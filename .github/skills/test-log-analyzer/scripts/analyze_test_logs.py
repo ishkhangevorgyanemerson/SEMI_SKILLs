@@ -197,23 +197,31 @@ def parse_stdf(stdf_path: Path) -> Tuple[pd.DataFrame, Dict]:
 
 def compute_metrics(df: pd.DataFrame) -> Dict:
     """Compute yield and failure metrics"""
-    total_parts = df["part_id"].nunique()
-    passing_parts = len(df[df["status"] == "PASS"]["part_id"].unique())
-    failing_parts = len(df[df["status"] == "FAIL"]["part_id"].unique())
+    # For part-level metrics, only use PRR (Part Results Record) which has the final verdict
+    prr_df = df[df["source_record"] == "PRR"].copy()
+    
+    # Get part-level status: for each part, get the last/final PRR status
+    part_status = prr_df.groupby("part_id").agg({"status": "first", "hard_bin": "first"}).reset_index()
+    
+    total_parts = len(part_status)
+    passing_parts = len(part_status[part_status["status"] == "PASS"])
+    failing_parts = len(part_status[part_status["status"] == "FAIL"])
     yield_pct = (passing_parts / total_parts * 100.0) if total_parts > 0 else 0.0
     
+    # Failed events from all test records (PTR/FTR)
     failed_events = len(df[df["status"] == "FAIL"])
     
-    # Top failing tests
+    # Top failing tests (from PTR/FTR, not PRR)
+    test_df = df[df["source_record"].isin(["PTR", "FTR"])]
     top_failing = (
-        df[df["status"] == "FAIL"]
+        test_df[test_df["status"] == "FAIL"]
         .groupby("test_name")
         .size()
         .sort_values(ascending=False)
         .head(TOP_N)
     )
     
-    # Site pattern
+    # Site pattern (failures across all records)
     site_fail_count = df[df["status"] == "FAIL"].groupby("site_num").size().sort_values(ascending=False)
     
     return {
