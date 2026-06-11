@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 # Configuration
-INPUT_FILE = Path(r"C:\Users\igevorgy\Desktop\SEMI_SKILLs\File\Mobile Device Test_10Jun2026_1458.std")
+INPUT_FILE = Path(r"C:\Users\igevorgy\Desktop\SEMI_SKILLs\File\1YUSK83G_001_S11P_N_20260526194205_M6251A0022AKX12NIA_T4C03.std")
 TOP_N = 10
 
 
@@ -131,6 +131,8 @@ def parse_stdf(stdf_path: Path) -> Tuple[pd.DataFrame, Dict]:
             lo_limit = parse_float(payload[12] if len(payload) > 12 else None)
             hi_limit = parse_float(payload[13] if len(payload) > 13 else None)
             units = payload[14] if len(payload) > 14 else ""
+            lo_spec = payload[18] if len(payload) > 18 else ""
+            hi_spec = payload[19] if len(payload) > 19 else ""
 
             part_id = active_part_by_site.get(site_num)
             if part_id is None:
@@ -139,10 +141,15 @@ def parse_stdf(stdf_path: Path) -> Tuple[pd.DataFrame, Dict]:
                 active_part_by_site[site_num] = part_id
 
             fail = False
-            if not math.isnan(result) and not math.isnan(lo_limit) and result < lo_limit:
-                fail = True
-            if not math.isnan(result) and not math.isnan(hi_limit) and result > hi_limit:
-                fail = True
+            has_limits = not (math.isnan(lo_limit) or math.isnan(hi_limit))
+            if lo_limit == 0.0 and hi_limit == 0.0 and lo_spec.strip() == "" and hi_spec.strip() == "":
+                has_limits = False
+
+            if has_limits and not math.isnan(result):
+                if not math.isnan(lo_limit) and result < lo_limit:
+                    fail = True
+                if not math.isnan(hi_limit) and result > hi_limit:
+                    fail = True
 
             rows.append({
                 "part_id": str(part_id),
