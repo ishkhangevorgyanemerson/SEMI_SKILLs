@@ -7,61 +7,54 @@ metadata:
   author: Ishkhan Gevorgyan
   version: "1.1.0"
   domain: semiconductor-test
-  input-formats:
-    - std
-    - stdf
-  primary-output: chat-summary
-  secondary-output: csv
----
+  ## Chat response format
+  Every time this skill is used it MUST return the analysis directly in chat using the exact layout below. Do not produce a separate markdown report file; return the content inline in the chat.
 
-# Test Log Analyzer
+  Use this exact template (replace <value> placeholders with actual values):
 
-## Purpose
-This skill reads a semiconductor test log file and returns a practical engineering summary directly in chat.
+  ### 1. Summary
+  Present the main KPIs in a markdown table.
 
-## When to use
-Use this skill when the task is to:
-- analyze a `.std` or `.stdf` file
-- calculate yield
-- count failures
-- rank top failing tests
-- identify site-based failure concentration
-- suggest likely issue areas and where to check first
+  | Metric | Value |
+  |---|---:|
+  | Total Parts Tested | <value> |
+  | Passing Parts | <value> |
+  | Failing Parts | <value> |
+  | Yield % | <value> |
+  | Total Fail Count | <value> |
 
-## Input
-Expected input:
-- a valid `.std` or `.stdf` file path
+  ### 2. Top Failing Tests
+  Present the top failing tests in a markdown table.
 
-Example:
-```text
-C:\Users\igevorgy\Desktop\SEMI_SKILLs\File\Mobile Device Test_10Jun2026_1458.std
-```
+  | Rank | Test Name / Test Number | Fail Count | Affected Sites |
+  |---:|---|---:|---:|
+  | 1 | <value> | <value> | <value> |
+  | 2 | <value> | <value> | <value> |
+  | 3 | <value> | <value> | <value> |
 
-## Required outputs
-This skill must return the result **in chat**.
+  If site information is not available, show `N/A`.
 
-Primary output in chat:
-- yield
-- passing part count
-- failing part count
-- total fail count
-- top failing tests ranking
-- site pattern summary
-- likely issue signals
-- suggested first checks
+  ### 3. Site Pattern Summary
+  Summarize site behavior in short bullet points, for example:
+  - which site has the highest failure count
+  - whether failures are concentrated on one site or spread across multiple sites
+  - whether the evidence suggests a site-specific issue
 
-Optional file output:
-- normalized `.csv` file
+  Explain meaning (do not simply repeat counts) — e.g. "Site 0 has the highest fail concentration and accounts for most failed events, which suggests a site hardware path issue rather than a broad DUT issue." 
 
-## Important output rule
-Do **not** generate a markdown report file.
+  ### 4. Potential Issues
+  Based on the observed patterns, explain the most likely issue categories. Use the provided possible interpretations as guidance (single-site concentration, one dominant test, several related parametric fails, many unrelated fails across sites).
 
-The summary must be:
-- written directly in chat
-- short
-- structured
-- engineer-friendly
-- focused on action
+  ### 5. What to Check First
+  Always give practical first checks appropriate to the observed pattern (site-focused checks, test-focused checks, or global checks). Use short, actionable bullets.
+
+  ### 6. Confidence / Assumptions
+  State any important limitations such as missing fields, inferred part IDs, partial parsing, and whether the conclusion is high- or low-confidence.
+
+  Behavior rules:
+  - Always return the chat summary in the exact template above.
+  - Do not create a markdown file for the primary summary.
+  - Include interpretation and first-step checks, not just raw counts.
 
 Only generate a `.csv` output file when needed.
 
