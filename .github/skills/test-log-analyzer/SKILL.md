@@ -1,93 +1,141 @@
-## Chat response format
-The reply must be returned directly in chat in a clean Markdown structure.
+---
+name: test-log-analyzer
+description: Analyze semiconductor .std / .stdf test logs and return a concise engineering summary directly in chat, plus a normalized CSV file when needed. Use this skill for yield review, fail count analysis, top failing tests ranking, site-based failure patterns, and first-pass root-cause guidance.
+license: Apache-2.0
+compatibility: Requires python3, pandas, and pystdf.
+metadata:
+  author: Ishkhan Gevorgyan
+  version: "1.2.0"
+  domain: semiconductor-test
+  input-formats:
+    - std
+    - stdf
+  primary-output: chat-summary
+  secondary-output: csv
+---
 
-Use the following layout exactly:
+# Test Log Analyzer
 
-### 1. Summary
-Present the main KPIs in a markdown table.
+## Purpose
+This skill reads a semiconductor test log file and returns a practical engineering summary directly in chat.
 
-| Metric | Value |
-|---|---:|
-| Total Parts Tested | <value> |
-| Passing Parts | <value> |
-| Failing Parts | <value> |
-| Yield % | <value> |
-| Total Fail Count | <value> |
+## When to use
+Use this skill when the task is to:
+- analyze a `.std` or `.stdf` file
+- calculate yield
+- count failures
+- rank top failing tests
+- identify site-based failure concentration
+- suggest likely issue areas and where to check first
 
-### 2. Top Failing Tests
-Present the top failing tests in a markdown table.
+## Input
+Expected input:
+- a valid `.std` or `.stdf` file path
 
-| Rank | Test Name / Test Number | Fail Count | Affected Sites |
-|---:|---|---:|---|
-| 1 | <value> | <value> | <value> |
-| 2 | <value> | <value> | <value> |
-| 3 | <value> | <value> | <value> |
+Example:
+```text
+C:\Users\igevorgy\Desktop\SEMI_SKILLs\File\Mobile Device Test_10Jun2026_1458.std
+```
 
-If site information is not available, show `N/A`.
+## Required outputs
+This skill must return the result **in chat**.
 
-### 3. Site Pattern Summary
-Summarize site behavior in short bullet points, for example:
-- which site has the highest failure count
-- whether failures are concentrated on one site or spread across multiple sites
-- whether the evidence suggests a site-specific issue
+Primary output in chat:
+- yield
+- passing part count
+- failing part count
+- total fail count
+- top failing tests ranking
+- site pattern summary
+- likely issue signals
+- suggested first checks
 
-Do not respond only with:
-- `Site 0: 28 failures`
+Optional file output:
+- normalized `.csv` file
 
-Instead explain the meaning, for example:
-- `Site 0 has the highest fail concentration and accounts for most failed events, which suggests a site hardware path issue rather than a broad DUT issue.`
+## Important output rule
+Do **not** generate a markdown report file.
 
-### 4. Potential Issues
-Based on the observed patterns, explain the most likely issue categories.
+The answer must be:
+- written directly in chat
+- short
+- structured
+- engineer-friendly
+- focused on action
 
-Possible interpretations:
-- **Single-site concentration** → possible contactor, socket, pogo, site hardware path, relay path, loadboard channel, calibration mismatch
-- **One dominant failing test** → possible test method issue, unstable instrument setup, incorrect limits, software/test-program issue
-- **Several related parametric fails** → possible DUT/process drift, voltage drift, temperature drift, analog path issue
-- **Many unrelated fails across all sites** → possible common test setup issue, shared power/instrument issue, environmental issue, process/product issue
+Only generate a `.csv` output file when needed.
 
-### 5. What to Check First
-Always give the user practical first checks.
+## Output format
+Use the structure defined in `output-template.md`.
 
-Examples:
-- If one site dominates:
-  - compare failing site against passing sites
-  - inspect socket/contact path
-  - inspect site hardware path
-  - verify relay/loadboard/channel integrity
-  - re-run a known good unit on the failing site
-- If one test dominates:
-  - verify limits
-  - verify instrument setup
-  - compare pass vs fail measured values
-  - check recent program changes
-- If failures are global:
-  - verify common power rails
-  - verify shared instruments
-  - verify environmental conditions
-  - review lot/process context if available
+That file defines how the chat response should look.
 
-### 6. Confidence / Assumptions
-State any important limitations:
-- missing fields
-- inferred part IDs
-- partial parsing
-- low-confidence vs high-confidence first-pass conclusion
+## Workflow
+1. Read the input `.std` / `.stdf` file.
+2. Parse available test records.
+3. Extract useful data such as:
+   - part ID
+   - site number
+   - test number / test name
+   - measured result
+   - limits
+   - fail status
+   - hard bin / soft bin if available
+4. Compute:
+   - total parts tested
+   - passing part count
+   - failing part count
+   - yield %
+   - total fail count
+   - top failing tests
+   - site-based fail concentration
+5. Interpret the result.
+6. Return the summary directly in chat using `output-template.md`.
+7. Generate only a `.csv` file if needed.
 
-### 7. Behavior rules
-- The response must be formatted for readability in chat
-- KPI results must be shown as markdown tables
-- Top failing tests must be shown as a markdown table
-- Site pattern summary must include interpretation, not only raw counts
-- Potential issues must connect the observed data to likely root-cause categories
-- Always tell the user what to verify first
-- Keep the answer concise, but useful for engineering triage
+## Interpretation rules
+Do not return only counts.
+Always return:
+- interpretation
+- likely issue direction
+- first validation steps
 
-### 8. Success criteria
-A good response must:
+Examples of expected reasoning:
+- If failures are concentrated on one site, suggest a possible socket/contact/loadboard/site hardware issue.
+- If one test dominates failures, suggest checking limits, test method, recent program changes, and instrument setup.
+- If failures are spread across all sites, suggest checking common rails, shared instruments, environment, or process/product conditions.
+
+## Behavior rules
+- Focus on the most important failure trends.
+- Do not dump raw records unless requested.
+- Do not create a markdown report file.
+- Always provide interpretation, not only raw counts.
+- Always explain what looks suspicious.
+- Always say where the user should check first.
+- If data is incomplete, still provide the best first-pass engineering assessment.
+- If parsing dependencies are missing, report the missing package clearly.
+- Format KPI results as markdown tables.
+- Format top failing tests as a markdown table.
+- Site pattern summary must include interpretation, not only raw counts.
+
+## Quality rules
+A poor response is:
+- `Site 0 has 28 failures`
+
+A good response continues with reasoning such as:
+- whether Site 0 dominates the fail population
+- whether this suggests a site hardware issue or a broader problem
+- whether the user should inspect socket/contact/loadboard/instrument path first
+- whether the dominant failing test suggests a setup/test-method issue instead of a DUT issue
+
+## Success criteria
+A good result must:
+- correctly calculate yield
+- correctly count failed events
+- correctly rank top failing tests
 - show the KPI summary in a table
 - show top failing tests in a table
-- explain whether failures are concentrated or distributed
-- explain the likely issue type
-- suggest the first checks the engineer should perform
-- avoid raw or overly minimal statements such as only listing one site and its fail count
+- clearly summarize site-related fail patterns
+- provide useful first-pass root-cause guidance
+- tell the user what to verify first
+- return the summary in chat, not as a markdown file
