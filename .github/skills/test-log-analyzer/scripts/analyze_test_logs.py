@@ -243,89 +243,150 @@ def compute_metrics(df: pd.DataFrame) -> Dict:
     }
 
 
+def load_output_template() -> str:
+    asset_path = Path(__file__).resolve().parents[1] / "assets" / "output-template.md"
+    text = asset_path.read_text(encoding="utf-8")
+    template, _, _ = text.partition("---")
+    return template.strip() + "\n"
+
+
+def format_fail_bullets(counter: Dict[str, int], max_items: int = TOP_N, site_mode: bool = False) -> str:
+    if not counter:
+        return "N/A"
+    lines = []
+    for i, (name, count) in enumerate(sorted(counter.items(), key=lambda x: x[1], reverse=True), 1):
+        if site_mode:
+            lines.append(f"  - Site {name}: {count} failures")
+        else:
+            lines.append(f"  - {name}: {count} failures")
+        if i >= max_items:
+            break
+    return "\n".join(lines)
+
+
+def build_top_level_interpretation(metrics: Dict) -> str:
+    if metrics["total_parts"] == 0:
+        return "- No parts or valid test records were detected, so a first-pass engineering interpretation is unavailable."
+
+    lines = []
+    if metrics["yield_pct"] >= 90.0:
+        lines.append("- Yield remains high, so the issue is more likely localized rather than a broad product or lot problem.")
+    elif metrics["yield_pct"] >= 60.0:
+        lines.append("- Yield is moderate, indicating a meaningful fail population that needs focused site/test review.")
+    else:
+        lines.append("- Yield is low, so the failure pattern may reflect a significant test-program or product issue.")
+
+    if metrics["site_failures"]:
+        top_site, top_site_count = max(metrics["site_failures"].items(), key=lambda x: x[1])
+        total_fails = sum(metrics["site_failures"].values())
+        if top_site_count / total_fails >= 0.6:
+            lines.append(f"- Failures are concentrated on Site {top_site}, which suggests a site hardware/contact/socket/loadboard issue.")
+        else:
+            lines.append("- Failures are distributed across multiple sites, which suggests a shared test hardware, program, or process/product condition.")
+
+    if metrics["top_failing_tests"]:
+        top_test, top_count = max(metrics["top_failing_tests"].items(), key=lambda x: x[1])
+        if top_count / max(1, metrics["failed_events"]) >= 0.4:
+            lines.append(f"- One dominant failing test ({top_test}) accounts for a large share of failures, so check test method, limits, and instrument path for that test.")
+        else:
+            lines.append("- Multiple failing tests contribute to the fail population, so inspect shared equipment, program flow, and general part/test stability.")
+
+    return "\n".join(lines)
+
+
+def build_potential_causes(metrics: Dict) -> str:
+    if metrics["total_parts"] == 0:
+        return "- N/A"
+
+    lines = []
+    if metrics["site_failures"]:
+        top_site, top_site_count = max(metrics["site_failures"].items(), key=lambda x: x[1])
+        total_fails = sum(metrics["site_failures"].values())
+        if top_site_count / total_fails >= 0.6:
+            lines.append("- Site concentration suggests socket/contact, loadboard, or site-specific hardware/path issues.")
+        else:
+            lines.append("- Multi-site failures suggest a shared test system, program, or product/process issue.")
+
+    if metrics["top_failing_tests"]:
+        top_test, top_count = max(metrics["top_failing_tests"].items(), key=lambda x: x[1])
+        lines.append(f"- Dominant failing test {top_test} suggests limits, test method, or instrument path issues for that measurement.")
+
+    if not lines:
+        lines.append("- No strong failure pattern could be computed from the available records.")
+
+    return "\n".join(lines)
+
+
+def build_first_checks(metrics: Dict) -> str:
+    if metrics["total_parts"] == 0:
+        return "- N/A"
+
+    lines = [
+        "- Re-run a known-good part on the most failure-heavy site.",
+        "- Compare the same failing tests across sites to isolate site-specific versus shared issues.",
+        "- Verify test limits, program version, and instrument configuration for the top failing tests.",
+        "- Check socket/contact/loadboard/instrument path if one site or a small set of sites dominates failures.",
+    ]
+    return "\n".join(lines)
+
+
+def build_next_actions(metrics: Dict) -> str:
+    if metrics["total_parts"] == 0:
+        return "- N/A"
+
+    lines = [
+        "- If one site dominates, isolate and inspect the suspect site hardware or loadboard path.",
+        "- If one test dominates, review the test method, limits, and measurement instrument path.",
+        "- Trend the same failing tests across more logs to see whether the issue is persistent or lot-specific.",
+        "- Use the normalized CSV output for deeper correlation and site-level follow-up.",
+    ]
+    return "\n".join(lines)
+
+
+def build_assumptions(metrics: Dict, info: Dict) -> str:
+    lines = [
+        "- This is a first-pass analysis based on parsed STDF records and inferred pass/fail status.",
+        "- Part-level yield is derived from PRR records and PTR/FTR fail events where available.",
+        "- If limits are missing or bins are nonstandard, some status labels may be approximate.",
+        f"- Parser backend used: {info['backend']}.",
+        f"- {info['ignored_rows']} non-test records were ignored or unparseable.",
+    ]
+    return "\n".join(lines)
+
+
 def generate_report(df: pd.DataFrame, metrics: Dict, info: Dict, input_file: Path) -> str:
-    """Generate markdown report"""
-    
-    report = f"""# Test Log Analysis Summary
+    """Generate report using the output template"""
+    template = load_output_template()
+    top_failing_tests_bullets = format_fail_bullets(metrics.get("top_failing_tests", {}))
+    site_failure_bullets = format_fail_bullets(metrics.get("site_failures", {}), site_mode=True)
 
-## Executive Summary
-Analyzed **{metrics['total_parts']}** parts: **{metrics['passing_parts']}** pass, **{metrics['failing_parts']}** fail, for an overall yield of **{metrics['yield_pct']}%**. Total failed test events: **{metrics['failed_events']}**.
+    report = template
+    report = report.replace("{{total_parts}}", str(metrics.get("total_parts", "N/A")))
+    report = report.replace("{{yield_percent}}", str(metrics.get("yield_pct", "N/A")))
+    report = report.replace("{{passing_parts}}", str(metrics.get("passing_parts", "N/A")))
+    report = report.replace("{{failing_parts}}", str(metrics.get("failing_parts", "N/A")))
+    report = report.replace("{{failed_test_events}}", str(metrics.get("failed_events", "N/A")))
+    report = report.replace("{{top_failing_tests_bullets}}", top_failing_tests_bullets)
+    report = report.replace("{{site_failure_bullets}}", site_failure_bullets)
+    report = report.replace("{{initial_interpretation}}", build_top_level_interpretation(metrics))
+    report = report.replace("{{potential_causes}}", build_potential_causes(metrics))
+    report = report.replace("{{first_checks}}", build_first_checks(metrics))
+    report = report.replace("{{next_actions}}", build_next_actions(metrics))
+    report = report.replace("{{assumptions_notes}}", build_assumptions(metrics, info))
 
-## Input Snapshot
-- **Source file:** `{input_file.name}`
-- **Detected format:** `STDF`
-- **Rows / test events analyzed:** **{len(df)}**
-- **Unique parts analyzed:** **{metrics['total_parts']}**
-- **Unique sites observed:** **{metrics['unique_sites']}**
-- **Records ignored/unprocessed:** **{info['ignored_rows']}**
-
-## KPI Snapshot
-- **Yield:** **{metrics['yield_pct']}%**
-- **Passing parts:** **{metrics['passing_parts']}**
-- **Failing parts:** **{metrics['failing_parts']}**
-- **Total failed test events:** **{metrics['failed_events']}**
-"""
-
-    if metrics['top_failing_tests']:
-        report += "\n## Top Failing Tests\n"
-        for i, (test_name, count) in enumerate(sorted(metrics['top_failing_tests'].items(), key=lambda x: x[1], reverse=True), 1):
-            report += f"{i}. **{test_name}**: {count} failures\n"
-    else:
-        report += "\n## Top Failing Tests\nNo failing tests detected.\n"
-
-    if metrics['site_failures']:
-        report += "\n## Site Pattern Summary\n"
-        for site, count in sorted(metrics['site_failures'].items(), key=lambda x: x[1], reverse=True):
-            report += f"- **Site {site}**: {count} failures\n"
-    else:
-        report += "\n## Site Pattern Summary\nNo site-related failures or insufficient site data.\n"
-
-    report += f"""
-## Recommended Next Actions
-- Continue normal yield monitoring
-- Investigate top failing tests for systematic issues
-
-## Assumptions and Data Quality Notes
-- Parser backend used: {info['backend']}
-- Analysis used {len(df)} normalized test-event rows
-- {info['ignored_rows']} non-test records were ignored or unparseable
-"""
-    
+    report = report + "\n"
     return report
 
 
 def main():
     input_file = INPUT_FILE
-    
-    print(f"Analyzing {input_file}...")
-    
-    # Parse STDF
     df, info = parse_stdf(input_file)
-    
-    # Compute metrics
     metrics = compute_metrics(df)
-    
-    # Generate report
     report = generate_report(df, metrics, info, input_file)
-    print(report)
-    
-    # Save outputs
-    output_dir = input_file.parent
-    
-    # Save markdown
-    md_path = output_dir / f"{input_file.stem}_summary.md"
-    md_path.write_text(report)
-    print(f"\nSaved to: {md_path}")
-    
-    # Save JSON metrics
-    json_path = output_dir / f"{input_file.stem}_summary.json"
-    json_path.write_text(json.dumps(metrics, indent=2))
-    print(f"Saved to: {json_path}")
-    
-    # Save normalized CSV
-    csv_path = output_dir / f"{input_file.stem}_normalized.csv"
+
+    csv_path = input_file.parent / f"{input_file.stem}_normalized.csv"
     df.to_csv(csv_path, index=False)
-    print(f"Saved to: {csv_path}")
+    print(report)
 
 
 if __name__ == "__main__":

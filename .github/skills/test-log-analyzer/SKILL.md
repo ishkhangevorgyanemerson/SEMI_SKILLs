@@ -84,9 +84,21 @@ The answer must be:
 - engineer-friendly
 - focused on action
 
-## Output format
-Use the structure defined in `output-template.md`.
-That file defines how the chat response must look.
+
+## Final output contract
+The assistant must return the final answer in chat using `output-template.md` as a strict format contract.
+
+This is mandatory.
+
+The assistant must not return:
+- a custom summary style
+- renamed sections
+- additional sections
+- optional recommendations outside the template
+- alternative bullet layouts
+
+The assistant must fill the placeholders from the parsed test results and return only that formatted response.
+
 
 ## Workflow
 1. Read the input `.std` / `.stdf` file.
